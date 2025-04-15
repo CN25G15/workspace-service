@@ -10,7 +10,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Outgoing;
+import org.tripmonkey.database.service.FetchWorkspace;
 import org.tripmonkey.database.service.FetchWorkspaceClient;
+import org.tripmonkey.database.service.PatchPersister;
 import org.tripmonkey.database.service.PatchPersisterClient;
 import org.tripmonkey.notification.service.Notification;
 import org.tripmonkey.patch.data.Status;
@@ -24,22 +27,20 @@ import org.tripmonkey.workspace.service.WorkspaceResponse;
 import java.util.ArrayList;
 
 @GrpcService
-public class WorkspaceService implements PatchApplier, WorkspaceRequester {
+public class WorkspaceService implements PatchApplier {
 
     @GrpcClient
-    PatchPersisterClient ppc;
+    PatchPersister ppc;
 
     @GrpcClient
-    FetchWorkspaceClient fwc;
+    FetchWorkspace fwc;
+
+    @Inject
+    KafkaService ks;
 
     // TODO Implement caching mechanism
 
-    @Inject
-    @Channel("notification-service")
-    Emitter<Notification> em;
-
     @Override
-    @RunOnVirtualThread
     public Uni<Status> apply(WorkspacePatch request) {
 
         Notification.Builder nb = Notification.newBuilder();
@@ -55,17 +56,9 @@ public class WorkspaceService implements PatchApplier, WorkspaceRequester {
         return ppc.apply(request).log("Sent request over GRPC to db-service")
                 .onTermination()
                 .call((status, throwable, aBoolean) ->
-                        status.getStatus() == 200 ? Uni.createFrom().completionStage(em.send(nb.setAction(request).build())) :
+                        status.getStatus() == 200 ? Uni.createFrom()
+                                .completionStage(ks.em.send(nb.setAction(request).build())) :
                         Uni.createFrom().nothing())
                 .log("Sent success");
-    }
-
-    @Override
-    @RunOnVirtualThread
-    public Uni<WorkspaceResponse> fetch(WorkspaceRequest request) {
-        return fwc.fetch(request)
-                .map(workspaceResponse -> workspaceResponse.hasWorkspace() ?
-                        WorkspaceResponse.newBuilder().setWorkspace(workspaceResponse.getWorkspace()).build() :
-                        WorkspaceResponse.newBuilder().build());
     }
 }
