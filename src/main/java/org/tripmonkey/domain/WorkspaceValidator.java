@@ -18,6 +18,4 @@ public class WorkspaceValidator {
     @RestClient
     PlacesClientInterface placesClient;
 
-    // method to validate workspace and ping google cloud for map
-
 }
