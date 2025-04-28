@@ -11,7 +11,7 @@ import org.tripmonkey.workspace.service.WorkspaceResponse;
 @GrpcService
 public class WorkspaceFetcherService implements WorkspaceRequester {
 
-    @GrpcClient
+    @GrpcClient("fwc")
     FetchWorkspace fwc;
 
     @Override

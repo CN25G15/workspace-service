@@ -29,10 +29,10 @@ import java.util.ArrayList;
 @GrpcService
 public class WorkspaceService implements PatchApplier {
 
-    @GrpcClient
+    @GrpcClient("ppc")
     PatchPersister ppc;
 
-    @GrpcClient
+    @GrpcClient("fwc")
     FetchWorkspace fwc;
 
     @Inject
