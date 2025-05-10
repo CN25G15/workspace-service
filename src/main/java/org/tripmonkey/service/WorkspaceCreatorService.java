@@ -24,6 +24,7 @@ public class WorkspaceCreatorService implements WorkspaceCreator {
     @Override
     public Uni<WorkspaceResponse> create(User request) {
         log.infof("Received request to create! %s", request.getUserId());
+        log.infof("User deserialized is %s", ProtoMapper.userMapper.deserialize(request));
         return Uni.createFrom().item(ProtoMapper.userMapper.deserialize(request))
                 .log(String.format("Received request to create workspace for user %s", request.getUserId()))
                 .map(Workspace::createFor)
