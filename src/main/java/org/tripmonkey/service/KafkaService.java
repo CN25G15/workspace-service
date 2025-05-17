@@ -1,18 +1,24 @@
 package org.tripmonkey.service;
 
 import io.smallrye.mutiny.Uni;
+
+import io.smallrye.reactive.messaging.MutinyEmitter;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.reactive.messaging.Channel;
-import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.eclipse.microprofile.reactive.messaging.Outgoing;
 import org.tripmonkey.notification.service.Notification;
+
 
 @ApplicationScoped
 public class KafkaService {
 
     @Inject
     @Channel("notification-service")
-    Emitter<Notification> em;
+    MutinyEmitter<Notification> me;
+
+
+    public Uni<Integer> submit(Notification n){
+        return me.send(n).map(unused -> 200).onFailure().recoverWithItem(500) ;
+    }
 
 }

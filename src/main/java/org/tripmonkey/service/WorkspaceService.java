@@ -55,10 +55,11 @@ public class WorkspaceService implements PatchApplier {
                 }).subscribe().with(nb::addAllUsers);
         return ppc.apply(request).log("Sent request over GRPC to db-service")
                 .onTermination()
-                .call((status, throwable, aBoolean) ->
-                        status.getStatus() == 200 ? Uni.createFrom()
-                                .completionStage(ks.em.send(nb.setAction(request).build())) :
-                        Uni.createFrom().nothing())
-                .log("Sent success");
+                .call((status, throwable, aBoolean) -> {
+                    if (status.getStatus() == 200) {
+                        return ks.submit(nb.setAction(request).build());
+                    }
+                    return Uni.createFrom().item(400);
+                }).log("Sent success");
     }
 }
