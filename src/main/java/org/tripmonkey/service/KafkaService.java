@@ -17,8 +17,8 @@ public class KafkaService {
     MutinyEmitter<Notification> me;
 
 
-    public Uni<Integer> submit(Notification n){
-        return me.send(n).map(unused -> 200).onFailure().recoverWithItem(500) ;
+    public Uni<Long> submit(Notification n){
+        return me.send(n).map(unused -> 200L).onFailure().recoverWithItem(500L) ;
     }
 
 }
