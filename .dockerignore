@@ -3,3 +3,9 @@
 !target/*-runner.jar
 !target/lib/*
 !target/quarkus-app/*
+
+!.gauth
+!.mvn
+!src
+!mvnw
+!pom.xml

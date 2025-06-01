@@ -1,0 +1,44 @@
+# --- Stage 1: Build the application ---
+FROM maven:3.8.8-eclipse-temurin-21-alpine AS build
+
+# Install google cloud dependencies and key
+RUN apk update && apk add --no-cache bash curl python3
+
+# Install google cloud to have access to cloud maven repo and initialize the service account
+
+# Copy source code to be compiled
+WORKDIR code
+COPY .gauth/sa-key.json sa-key.json
+# Install google cloud to have access to cloud maven repo and initialize the service account
+RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code
+ENV PATH="$PATH:/code/google-cloud-sdk/bin:/code/target/"
+RUN google-cloud-sdk/bin/gcloud auth activate-service-account image-repo-account@cn25-g15-tripmonkey.iam.gserviceaccount.com --key-file=sa-key.json
+
+COPY --chmod=0777 mvnw mvnw
+COPY .mvn .mvn
+COPY pom.xml pom.xml
+
+# Fix CRLF line endings if present in mvnw
+RUN sed -i 's/\r$//' mvnw
+
+ENV MAVEN_CONFIG=""
+COPY src src
+RUN ./mvnw package -DskipTests
+
+## Stage 2 : create the docker final image
+FROM registry.access.redhat.com/ubi9/openjdk-21:latest
+
+ENV LANGUAGE='en_US:en'
+
+# We make four distinct layers so if there are application changes the library layers can be re-used
+COPY --from=build --chown=185 /code/target/quarkus-app/lib/ /deployments/lib/
+COPY --from=build --chown=185 /code/target/quarkus-app/*.jar /deployments/
+COPY --from=build --chown=185 /code/target/quarkus-app/app/ /deployments/app/
+COPY --from=build --chown=185 /code/target/quarkus-app/quarkus/ /deployments/quarkus/
+
+EXPOSE 8080 5005
+USER 185
+ENV JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_APP_JAR="/deployments/quarkus-run.jar"
+
+ENTRYPOINT [ "/opt/jboss/container/java/run/run-java.sh" ]

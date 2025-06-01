@@ -1,0 +1,37 @@
+## Stage 1 : build with maven builder image with native capabilities
+FROM quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21 AS build
+
+WORKDIR /code
+
+# Install google cloud dependencies
+RUN dnf install -y bash curl python3 && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+COPY --chown=quarkus:quarkus --chmod=0755 .gauth/sa-key.json sa-key.json
+
+# Install google cloud to have access to cloud maven repo and initialize the service account
+RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code
+ENV PATH="$PATH:/code/google-cloud-sdk/bin"
+
+USER quarkus
+RUN google-cloud-sdk/bin/gcloud auth activate-service-account image-repo-account@cn25-g15-tripmonkey.iam.gserviceaccount.com --key-file=sa-key.json
+# Copy source code to be compiled
+COPY --chown=quarkus:quarkus --chmod=0755 mvnw /code/mvnw
+COPY --chown=quarkus:quarkus .mvn /code/.mvn
+COPY --chown=quarkus:quarkus pom.xml /code/
+COPY src /code/src
+
+RUN ./mvnw package -Dnative
+
+## Stage 2 : create the docker final image
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5
+WORKDIR /work/
+RUN chown 1001 /work \
+    && chmod "g+rwX" /work \
+    && chown 1001:root /work
+COPY --from=build --chown=1001:root --chmod=0755 /code/target/*-runner /work/application
+
+EXPOSE 8080
+USER 1001
+
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]
