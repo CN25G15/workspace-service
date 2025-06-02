@@ -1,16 +1,36 @@
+# Stage 0 pre builder
+FROM registry.access.redhat.com/ubi9/ubi AS toolsource
+
+RUN dnf install -y --allowerasing \
+                    curl \
+                    wget \
+                    which \
+                    python3 \
+                    ca-certificates
+
 ## Stage 1 : build with maven builder image with native capabilities
 FROM quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21 AS build
+
+COPY --from=toolsource /usr/bin/curl /usr/bin/curl
+COPY --from=toolsource /usr/bin/wget /usr/bin/wget
+COPY --from=toolsource /usr/bin/which /usr/bin/which
+COPY --from=toolsource /usr/bin/python3 /usr/bin/python3
+COPY --from=toolsource /usr/lib64/ /usr/lib64/
+COPY --from=toolsource /lib64/ /lib64/
+COPY --from=toolsource /usr/share/ /usr/share/
+COPY --from=toolsource /etc/ssl /etc/ssl
+COPY --from=toolsource /etc/pki /etc/pki
+
+ENV PATH="/usr/bin:$PATH"
 
 WORKDIR /code
 
 # Install google cloud dependencies
-RUN dnf install -y bash curl python3 && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
 COPY --chown=quarkus:quarkus --chmod=0755 .gauth/sa-key.json sa-key.json
-
+# > /dev/null to reduce verbosity and spam
+RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code > /dev/null
 # Install google cloud to have access to cloud maven repo and initialize the service account
-RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code
+
 ENV PATH="$PATH:/code/google-cloud-sdk/bin"
 
 USER quarkus
@@ -21,7 +41,8 @@ COPY --chown=quarkus:quarkus .mvn /code/.mvn
 COPY --chown=quarkus:quarkus pom.xml /code/
 COPY src /code/src
 
-RUN ./mvnw package -Dnative
+# Fix CRLF line endings if present in mvnw
+RUN sed -i 's/\r$//' mvnw && ./mvnw package -Dnative --batch-mode
 
 ## Stage 2 : create the docker final image
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5
