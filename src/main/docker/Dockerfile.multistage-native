@@ -9,7 +9,7 @@ RUN dnf install -y --allowerasing \
                     ca-certificates
 
 ## Stage 1 : build with maven builder image with native capabilities
-FROM quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21 AS build
+FROM quay.io/quarkus/ubi-quarkus-graalvmce-builder-image:jdk-21 AS build
 
 COPY --from=toolsource /usr/bin/curl /usr/bin/curl
 COPY --from=toolsource /usr/bin/wget /usr/bin/wget
@@ -42,7 +42,8 @@ COPY --chown=quarkus:quarkus pom.xml /code/
 COPY src /code/src
 
 # Fix CRLF line endings if present in mvnw
-RUN sed -i 's/\r$//' mvnw && ./mvnw package -Dnative --batch-mode
+RUN sed -i 's/\r$//' mvnw && ./mvnw package -Pnative -Dquarkus.native.additional-build-args="--no-fallback -J-Xmx6G -J-Dgraal.CompilationThreads=8"
+
 
 ## Stage 2 : create the docker final image
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5
