@@ -269,7 +269,8 @@ public class WorkspaceService implements PatchApplier {
                 .onItem().transformToUni(this::persistPatch)
                 // return value if successful
                 .onTermination()
-                .call((statusItemWithContext, throwable, aBoolean) -> endActions(statusItemWithContext) )
+                //.call((statusItemWithContext, throwable, aBoolean) -> endActions(statusItemWithContext) )
+                .call((statusItemWithContext, throwable, aBoolean) -> submitToNotification(statusItemWithContext) )
                 .onItem().transform(itemWithContext -> Status.newBuilder().setStatus(itemWithContext.get().getStatus()).build())
                 .onFailure().recoverWithItem(() -> Status.newBuilder().setStatus(400).build());
 
