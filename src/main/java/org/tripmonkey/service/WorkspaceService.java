@@ -78,11 +78,14 @@ public class WorkspaceService implements PatchApplier {
 
     private Uni<ItemWithContext<WorkspaceResponse>> fetchWorkspaceFromDatabase(ItemWithContext<WorkspacePatch> iwc){
         return fwc.fetch(WorkspaceRequest.newBuilder().setWid(iwc.get().getWorkspaceId()).build())
+                .invoke(workspaceResponse -> log.infof("Found workspace: %s",workspaceResponse.hasWorkspace()))
                 .onFailure().transform(FetchWorkspaceException::new)
-                .onItem().transform(workspaceResponse -> {
+                .onItem()
+                .transform(workspaceResponse -> {
                     ItemWithContext<WorkspaceResponse> ret =
                             new ItemWithContext<WorkspaceResponse>(iwc.context(), workspaceResponse);
                     Notification.Builder nb = Notification.newBuilder();
+                    nb.setAction(iwc.get());
                     List<User> l = new ArrayList<User>();
                     if(workspaceResponse.hasWorkspace()){
                         l = workspaceResponse.getWorkspace().getCollaboratorsList();
@@ -98,7 +101,7 @@ public class WorkspaceService implements PatchApplier {
                     if(!wasCancelled && throwable == null)
                         log.infof("Fetched workspace %s from the database successfully.",iwc.get().getWorkspaceId());
                     if(throwable != null)
-                        log.errorf("Failed to fetch workspace from the database:", throwable);
+                        log.errorf("Failed to fetch workspace from the database: %s", throwable);
                     if(wasCancelled)
                         log.infof("Workspace fetch operation was cancelled.");
                 });
@@ -260,6 +263,7 @@ public class WorkspaceService implements PatchApplier {
 
         return Uni.createFrom().item(request)
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .log(String.format("Began processing request for workspace %s", request.getWorkspaceId()))
                 .attachContext()
                 // fetch workspace from database to validate if it exists (eventually would be the cache mechanism)
                 .onItem().transformToUni(this::fetchWorkspaceFromDatabase)
@@ -270,7 +274,15 @@ public class WorkspaceService implements PatchApplier {
                 // return value if successful
                 .onTermination()
                 //.call((statusItemWithContext, throwable, aBoolean) -> endActions(statusItemWithContext) )
-                .call((statusItemWithContext, throwable, aBoolean) -> submitToNotification(statusItemWithContext) )
+                .call((statusItemWithContext, throwable, wasCancelled) -> {
+                    if(!wasCancelled && throwable == null)
+                        return submitToNotification(statusItemWithContext);
+                    if(throwable != null)
+                        log.warnf("Failed patch pipeline. Not emitting any notification %s", throwable.getMessage());
+                    if(wasCancelled)
+                        log.infof("Patch operation was cancelled.");
+                    return null;
+                })
                 .onItem().transform(itemWithContext -> Status.newBuilder().setStatus(itemWithContext.get().getStatus()).build())
                 .onFailure().recoverWithItem(() -> Status.newBuilder().setStatus(400).build());
 
