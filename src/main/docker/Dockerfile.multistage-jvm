@@ -10,9 +10,9 @@ RUN apk update && apk add --no-cache bash curl python3
 WORKDIR code
 COPY .gauth/sa-key.json sa-key.json
 # Install google cloud to have access to cloud maven repo and initialize the service account
-RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code
-ENV PATH="$PATH:/code/google-cloud-sdk/bin:/code/target/"
-RUN google-cloud-sdk/bin/gcloud auth activate-service-account image-repo-account@cn25-g15-tripmonkey.iam.gserviceaccount.com --key-file=sa-key.json --verbosity=debug
+RUN curl https://sdk.cloud.google.com > install.sh && bash install.sh --disable-prompts --install-dir=/code > /dev/null 2>&1
+ENV PATH="$PATH:/code/google-cloud-sdk/bin"
+RUN google-cloud-sdk/bin/gcloud auth activate-service-account image-repo-account@cn25-g15-tripmonkey.iam.gserviceaccount.com --key-file=sa-key.json
 
 COPY --chmod=0777 mvnw mvnw
 COPY .mvn .mvn
